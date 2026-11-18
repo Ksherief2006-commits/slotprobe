@@ -1,0 +1,24 @@
+name: poll
+on:
+  schedule: [{cron: "*/10 * * * *"}]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: {group: poll, cancel-in-progress: false}
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load data branch
+        run: |
+          URL="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git clone --depth 1 --branch data "$URL" data 2>/dev/null || { mkdir data && git -C data init -q -b data; }
+      - run: python3 probe.py locations.json data/data.csv
+      - name: Commit data
+        run: |
+          cd data
+          git config user.name "poll-bot"; git config user.email "poll-bot@users.noreply.github.com"
+          git add data.csv && git commit -qm "poll $(date -u +%FT%TZ)"
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data
